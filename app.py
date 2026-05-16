@@ -11,13 +11,15 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "super-secret-kara-key")
 # Requesting permission to see and read the specific vault file in Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
-def get_google_client_config():
-    # Render runs behind a proxy, which can turn https into http internally.
-    # We explicitly force https here to match exactly what Google Cloud expects.
+def get_secure_base_url():
+    """Forces the URL to use secure HTTPS since Render operates behind a proxy."""
     base_url = request.url_root.rstrip('/')
     if base_url.startswith("http://"):
         base_url = base_url.replace("http://", "https://")
-        
+    return base_url
+
+def get_google_client_config():
+    base_url = get_secure_base_url()
     return {
         "web": {
             "client_id": os.environ.get("GOOGLE_CLIENT_ID"),
@@ -98,10 +100,11 @@ def home():
 
 @app.route('/login')
 def login():
+    base_url = get_secure_base_url()
     flow = Flow.from_client_config(
         get_google_client_config(),
         scopes=SCOPES,
-        redirect_uri=f"{request.url_root.rstrip('/')}/callback"
+        redirect_uri=f"{base_url}/callback"
     )
     authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
     session['state'] = state
@@ -109,13 +112,14 @@ def login():
 
 @app.route('/callback')
 def callback():
+    base_url = get_secure_base_url()
     flow = Flow.from_client_config(
         get_google_client_config(),
         scopes=SCOPES,
         state=session.get('state'),
-        redirect_uri=f"{request.url_root.rstrip('/')}/callback"
+        redirect_uri=f"{base_url}/callback"
     )
-    flow.fetch_token(authorization_response=request.url)
+    flow.fetch_token(authorization_response=request.url.replace("http://", "https://"))
     credentials = flow.credentials
     session['credentials'] = {
         'token': credentials.token,

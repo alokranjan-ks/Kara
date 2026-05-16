@@ -12,13 +12,19 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "super-secret-kara-key")
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
 def get_google_client_config():
+    # Render runs behind a proxy, which can turn https into http internally.
+    # We explicitly force https here to match exactly what Google Cloud expects.
+    base_url = request.url_root.rstrip('/')
+    if base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+        
     return {
         "web": {
             "client_id": os.environ.get("GOOGLE_CLIENT_ID"),
             "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET"),
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [f"{request.url_root.rstrip('/')}/callback"]
+            "redirect_uris": [f"{base_url}/callback"]
         }
     }
 
